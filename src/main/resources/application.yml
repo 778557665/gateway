@@ -1,0 +1,98 @@
+spring:
+  application:
+    name: gateway-service
+
+  cloud:
+    gateway:
+      # 全局cors的配置
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+
+      discovery:
+        locator:
+          enabled: true
+
+      # 路由
+      default-filters:
+      routes:
+        - id: wechat-service
+          # lb代表从注册中心获取服务
+          uri: lb://wechat-service
+          predicates:
+            # 转发该路径
+            - Path= /wechat/**
+          filters:
+            - StripPrefix= 0
+            - name: Retry
+              args:
+                retries: 3 #重试次数，默认3，不包含本次
+                status: 404 #重试response code，默认没有
+                statusSeries: 500 #重试response code的系列，100（info），200（success），300（redirect），400（client error），500（server error），默认500
+                method: GET #重试的request请求，默认GET
+            - name: Hystrix
+              args:
+                name: fallbackcmd #HystrixCommand代码的名称
+                fallbackUri: forward:/fallback #触发断路由后的跳转请求url
+
+server:
+  port: 9888
+  http2:
+    enabled: true
+
+  netty:
+    max-threads: 2000
+    min-spare-threads: 64
+    max-connections: 20000
+
+ribbon:
+  ReadTimeout: 3000
+  ConnectTimeout: 3000
+  #false只会对get请求进行重试
+  OkToRetryOnAllOperations: false
+  MaxAutoRetries: 1
+  MaxAutoRetriesNextServer: 1
+
+  httpclient:
+    enabled: false
+  okhttp:
+    enabled: true
+
+logging:
+  level:
+    ROOT: INFO
+    org.springframework.web: INFO
+
+hystrix:
+  command:
+    default:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds: 24000
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000  #链接超时
+        readTimeout: 5000    #读取超时
+        loggerLevel: basic    #日志记录下请求url
+  compression:
+    request:
+      enable: true
+      mime-types: text/xml,application/xml,application/json
+      min-request-size: 2048
+    response:
+      enable: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: ALWAYS
